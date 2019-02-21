@@ -1,0 +1,42 @@
+State Abbreviation
+Italy   IT
+Algeria DZ
+Spain  ES
+Belgium BE
+France FR
+Portugal  PT
+"Slovak Republic" SK
+Austria AT
+Latvia LV
+Lithuania  LT
+Netherlands NL
+"United Kingdom"  UK
+Ukraine  UA
+Hungary  HU
+Switzerland  CH
+Germany DE
+"Czech Republic"  CZ
+Poland  PL
+Luxembourg LU
+Romania  RO
+Iran  IR
+Turkey TR
+Norway  NO
+Denmark  DK
+Sweden SE
+Croatia   HR
+Tunisia  TN
+Libya LY
+Slovenia  SI
+Russia RU
+Finland  FI
+Bulgaria  BG
+Macedonia MK
+Estonia    EE
+Greece  GR
+Serbia  RS
+Belarus  BY
+Ireland  IE
+Morocco  MA
+Georgia  GE
+Moldova MD
