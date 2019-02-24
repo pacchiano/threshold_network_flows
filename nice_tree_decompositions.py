@@ -562,7 +562,8 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 		frontier += focus_node.children
 	
 	if already_finished:
-		print("Already finished")
+		if verbose:
+			print("Already finished")
 		return root_treenode
 
 
@@ -582,7 +583,8 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 	vertices_to_indices = dict([(subgraph_vertices[i], i) for i in range(len(subgraph_vertices))])
 
 	if special_edge in subgraph_edges:
-		print("Special edge is in this node!!")
+		if verbose:
+			print("Special edge is in this node!!")
 		special_edge_index = edges_to_indices[special_edge]
 		subgraph_capacities_list[special_edge_index] = [k,]
 
@@ -594,9 +596,9 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 	partial_solutions = []
 
 	if len(focus_node.children) == 2 and len(focus_node.vertex_set) == len(focus_node.children[0].vertex_set) and len(focus_node.vertex_set) == len(focus_node.children[0].vertex_set):
-		print("Found a join node!!!")
-
-		print("Children partial solution tables sizes ", len(focus_node.children[0].extra_info["partial solutions"]), len(focus_node.children[1].extra_info["partial solutions"]))
+		if verbose:
+			print("Found a join node!!!")
+			print("Children partial solution tables sizes ", len(focus_node.children[0].extra_info["partial solutions"]), len(focus_node.children[1].extra_info["partial solutions"]))
 		## CREATE DICTIONARY FROM THE PARTIAL SOLUTIONS LISTS
 		
 		if len(focus_node.children[0].extra_info["subgraph edges"]) !=  len(focus_node.children[1].extra_info["subgraph edges"]):
@@ -680,9 +682,11 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 					raise ValueError( "The residual flow doesn't sum to zero.")
 
 
+
 	elif len(focus_node.children) == 1 and len(focus_node.vertex_set) == len(focus_node.children[0].vertex_set) -1:
-		print("Found a forget node!!")
-		print("Children partial solution tables sizes ", len(focus_node.children[0].extra_info["partial solutions"]) )
+		if verbose:
+			print("Found a forget node!!")
+			print("Children partial solution tables sizes ", len(focus_node.children[0].extra_info["partial solutions"]) )
 		forgotten_vertex = list(focus_node.children[0].vertex_set - focus_node.vertex_set)[0]
 		neighbors = list(focus_node.children[0].extra_info["subgraph"].neighbors(forgotten_vertex))
 		child_edges_to_indices = focus_node.children[0].extra_info["edges to indices"]
@@ -701,8 +705,6 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 				continue
 
 			projected_residual_flow = [child_residual_flow[child_vertices_to_indices[v]] for v in focus_vertices]
-			print("projected residual flow ", projected_residual_flow)
-			print("child residual flow ", child_residual_flow)
 			projected_partial_flow = [child_frontier_flow[child_edges_to_indices[e]] for e in subgraph_edges]
 			neighbors_cost = 0
 
@@ -733,8 +735,9 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 
 
 	elif len(focus_node.children) == 1 and len(focus_node.vertex_set) == len(focus_node.children[0].vertex_set) +1:
-		print("Found an introduce node!!")
-		print("Children partial solution tables sizes ", len(focus_node.children[0].extra_info["partial solutions"]) )
+		if verbose:
+			print("Found an introduce node!!")
+			print("Children partial solution tables sizes ", len(focus_node.children[0].extra_info["partial solutions"]) )
 
 
 		added_vertex = list(focus_node.vertex_set - focus_node.children[0].vertex_set)[0]
@@ -797,8 +800,31 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 		raise ValueError("This parent - child structure is broken!!!")
 	#focus_node.extra_info["partial solutions"] = partial_solutions_df
 	focus_node.extra_info["upward visited"] = True
+
+	### cleaning partial solutions from repetitions
+	partial_solutions_map = dict([])
+	#print("Pre trimmed size ", len(partial_solutions))
+	for p in partial_solutions:
+		partial_solution_key = tuple(list(p[0])+ list(p[1]))
+		if partial_solution_key not in partial_solutions_map:
+			partial_solutions_map[partial_solution_key] = (p[2], p[3])
+		else:
+			#raise ValueError("aslkfmasldfkmasdlfkmasldkfmalskdmfalksdmlaksmdflaksdmf")
+			existing_tuple = partial_solutions_map[partial_solution_key]
+			if p[2] < existing_tuple[0]:
+				partial_solutions_map[partial_solution_key] = (p[2], p[3])
+
+	partial_solutions = []
+	for p in partial_solutions_map:
+		residual_flow =list( p[ :len(subgraph_vertices) ] ) 
+		frontier_flow = list(p[len(subgraph_vertices): len(subgraph_vertices) + len(subgraph_edges) ])
+		(x_cost, indices) = partial_solutions_map[p]
+		partial_solutions.append((residual_flow, frontier_flow, x_cost, indices ))
+
+	#print("Post trimming size ", len(partial_solutions))
 	focus_node.extra_info["partial solutions"] = partial_solutions
-	print("Size of the partial solutions ", len(partial_solutions))
+	if verbose:
+		print("Size of the partial solutions ", len(partial_solutions))
 	return root_treenode
 
 
@@ -808,14 +834,19 @@ def recover_optimal_flow(prepared_tree_root):
 	opt_indexes= None
 	opt_flow = None
 	i_star = None
+	found_solution = False
 	for i in range(len(prepared_tree_root.extra_info["partial solutions"])):
 		p = prepared_tree_root.extra_info["partial solutions"][i]
 		if np.sum(np.abs(np.array(p[0]))) == 0:
 			if p[2]< min_cost:
+				found_solution = True
 				min_cost = p[2]
 				opt_indexes = p[3]
 				opt_flow = p[1]
 				i_star = i
+	if not found_solution:
+		print("Found no optimal solution. Problem infeasible.")
+		return None
 	prepared_tree_root.extra_info["optimal index"] = i_star
 	prepared_tree_root.extra_info["downward visited"] = True
 	if len(opt_indexes) == 2:
@@ -868,8 +899,104 @@ def recover_optimal_flow(prepared_tree_root):
 	return flow_map
 
 
+def process_graph(G, savefigures = True):
+
+	edges = list(G.edges)
+	edges = [frozenset(e) for e in edges]
+
+	treewidth, treedecomposition = approximation.treewidth_min_fill_in(G) 
+
+	if savefigures:
+		pos = nx.spring_layout(treedecomposition, scale = 3)
+		nx.draw(treedecomposition, pos, with_labels = True, font_size = 6)
+		plt.savefig("./raw_treedecomposition.svg", format="svg")
+		plt.clf()
 
 
+	nodes_dictionary, node_identifier_root = get_rooted_tree_decomposition(treedecomposition)
+	print("Tree size ", check_tree_size(nodes_dictionary[node_identifier_root], verbose = False))
 
+	nice_tree_root = get_rooted_nice_decomposition(nodes_dictionary[node_identifier_root] )
+	print("Nice tree size ", check_tree_size(nice_tree_root, verbose = False))
+	leaves =  find_leaves(nice_tree_root, verbose = False)
+	nice_tree_root_subgraphs, max_edges_in_subgraph = append_subgraphs(nice_tree_root, G, verbose = False)
+	nice_tree_root_subgraphs = clean_raw_nice_decomposition(nice_tree_root_subgraphs)
+
+	### REMOVE THISSS BELOW
+	if savefigures:
+		tree = get_tree(nice_tree_root_subgraphs)
+		pos = nx.spring_layout(tree, scale = 200)
+		nx.draw(tree, pos, with_labels = True, font_size = 2)
+		plt.savefig("./raw_nice_tree_gas.svg", format ="svg")
+		plt.clf()
+
+	### Add all the extra edges
+	nice_tree_root_plus_edge = nice_tree_root_subgraphs
+	for edge in edges:
+		nice_tree_root_plus_edge = add_edge_leaf(nice_tree_root_plus_edge, edge)
+	nice_tree_root_plus_edge = clean_raw_nice_decomposition(nice_tree_root_plus_edge)
+	nice_tree_root_subgraphs_identifier, identifier_list = append_identifier(nice_tree_root_plus_edge, verbose = False)
+
+	if savefigures:
+		tree = get_tree(nice_tree_root_subgraphs_identifier)
+		pos = nx.spring_layout(tree, scale = 200)
+		nx.draw(tree, pos, with_labels = True, font_size = 2)
+		plt.savefig("./nice_tree_gas.svg", format ="svg")
+		plt.clf()
+
+	print("Find the edge")
+	leaves = find_leaves(nice_tree_root_subgraphs_identifier, verbose = False)
+	for edge in edges:
+		found_edge = False
+		for l in leaves:
+			if edge in l.extra_info["subgraph edges"]:
+				found_edge = True
+		if not found_edge:
+			raise ValueError("Edge not found among the leaves!!!!!!!!!!!!!!")
+
+	print("Checing the stability of join nodes.")
+	check_join_nodes(nice_tree_root_subgraphs_identifier)
+	num_nice_nodes = check_tree_size(nice_tree_root_subgraphs_identifier)
+	print("Nice tree has ", num_nice_nodes, " nodes.")
+
+	return nice_tree_root_subgraphs_identifier
+
+def solve_flow(nice_tree_root_subgraphs_identifier, capacities_map, special_edge, k, costs_map):
+	num_nice_nodes = check_tree_size(nice_tree_root_subgraphs_identifier)
+
+	prepared_tree_root = prepare_leaves_upward_propagation(nice_tree_root_subgraphs_identifier, 
+				capacities_map ,  
+				special_edge, 
+				k,
+				costs_map )
+
+
+	for i in range(num_nice_nodes):
+		upward_visited = count_upward_visited(prepared_tree_root)
+		print("Vertices left to upward propagate ", num_nice_nodes - upward_visited)
+		prepared_tree_root = upward_propagate(prepared_tree_root,
+						capacities_map ,  
+						special_edge, 
+						k,
+						costs_map )
+
+	min_cost = float("inf")
+	opt_solution = None
+	for p in prepared_tree_root.extra_info["partial solutions"]:
+		if np.sum(np.abs(np.array(p[0]))) == 0:
+			#print(p)
+			if p[2]< min_cost:
+				min_cost = p[2]
+				opt_solution = p
+
+	optimal_flow_map = recover_optimal_flow(prepared_tree_root)
+
+	if optimal_flow_map != None:
+		for e in optimal_flow_map:
+			edge = list(e)
+			edge.sort()
+			print(edge, optimal_flow_map[e])
+
+	return prepared_tree_root, optimal_flow_map, min_cost, opt_solution
 
 
