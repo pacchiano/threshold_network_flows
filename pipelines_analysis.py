@@ -133,7 +133,7 @@ for special_edge in edges:
 		if special_edge in l.extra_info["subgraph edges"]:
 			found_edge = True
 	if not found_edge:
-		print("Edge not found among the leaves!!!!!!!!!!!!!!")
+		raise ValueError("Edge not found among the leaves!!!!!!!!!!!!!!")
 	else:
 		print("Edge found!!!")
 
@@ -142,6 +142,10 @@ print("Checing the stability of join nodes.")
 check_join_nodes(nice_tree_root_subgraphs_identifier)
 num_nice_nodes = check_tree_size(nice_tree_root_subgraphs_identifier)
 print("Nice tree has ", num_nice_nodes, " nodes.")
+
+
+special_edge = frozenset({'"Italy"', '"LNG"'})
+
 
 
 
@@ -160,6 +164,25 @@ for i in range(num_nice_nodes):
 					special_edge, 
 					1,
 					costs_map )
+
+min_cost = float("inf")
+opt_solution = None
+for p in prepared_tree_root.extra_info["partial solutions"]:
+	if np.sum(np.abs(np.array(p[0]))) == 0:
+		print(p)
+		if p[2]< min_cost:
+			min_cost = p[2]
+			opt_solution = p
+
+print("Special edge ", special_edge)
+
+print(min_cost)
+optimal_flow_map = recover_optimal_flow(prepared_tree_root)
+
+for e in optimal_flow_map:
+	edge = list(e)
+	edge.sort()
+	print(edge, optimal_flow_map[e])
 
 
 

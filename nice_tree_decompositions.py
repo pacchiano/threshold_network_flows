@@ -15,6 +15,8 @@ class TreeNode:
 		self.parent = None
 		self.extra_info = dict([])
 		self.extra_info["upward visited"] = False
+		self.extra_info["downward visited"] = False
+		
 
 	def set_children(self, tree_nodes):
 		self.children = tree_nodes
@@ -433,6 +435,7 @@ def add_capacities_and_costs(root_treenode, capacities_map, costs_map, verbose =
 
 def get_flow_into_vertex(frozenset_edge, target_vertex, flow_value):
 	edge_list = list(frozenset_edge)
+	edge_list.sort()
 	#edge_list[0] ---> edge_list[1]
 	# The flow is assumed to go from the first vertex to the second one.
 	if edge_list[0] == target_vertex:
@@ -487,7 +490,7 @@ def prepare_leaves_upward_propagation(root_treenode, capacities_map, special_edg
 		subgraph_edges = leaf.extra_info["subgraph edges"]
 		edges_to_indices = dict([(subgraph_edges[i], i) for i in range(len(subgraph_edges))])
 		subgraph_capacities = [capacities_map[subgraph_edges[i]] for i in range(len(subgraph_edges))]
-		subgraph_capacities_list = [list(range(-c-1, c+1)) for c in subgraph_capacities]
+		subgraph_capacities_list = [list(range(-c, c+1)) for c in subgraph_capacities]
 		leaf_vertices = list(leaf.vertex_set)
 		vertices_to_indices = dict([(leaf_vertices[i], i) for i in range(len(leaf_vertices))])
 		leaf.extra_info["edges to indices"] = edges_to_indices 
@@ -515,7 +518,10 @@ def prepare_leaves_upward_propagation(root_treenode, capacities_map, special_edg
 				edge_flow = frontier_flow[edge_index]
 				if edge_flow != 0:
 					x_cost += costs_map[edge]
-				
+			
+
+			#IPython.embed()	
+
 			for i in range(len(leaf_vertices)):
 				v = leaf_vertices[i]
 				neighbors = list(leaf.extra_info["subgraph"].neighbors(v))
@@ -526,11 +532,11 @@ def prepare_leaves_upward_propagation(root_treenode, capacities_map, special_edg
 					if edge_flow != 0:
 						residual_flow[i] +=  get_flow_into_vertex(edge, v, edge_flow)
 			
-			partial_solutions.append((residual_flow, frontier_flow, x_cost))
-			#dataframe_row = list(residual_flow) + list(frontier_flow) + [x_cost]
-			#row_df = pd.DataFrame(dataframe_row, columns = df_columns)
-			#partial_solutions_df.append(row_df, ignore_index = True)
 
+			partial_solutions.append((residual_flow, frontier_flow, x_cost, []))
+			if sum(residual_flow) != 0:
+				
+				raise ValueError("Residual flow is nonzero in this leaf.")
 
 		leaf.extra_info["partial solutions"] = partial_solutions
 		leaf.extra_info["upward visited"] = True
@@ -592,18 +598,37 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 
 		print("Children partial solution tables sizes ", len(focus_node.children[0].extra_info["partial solutions"]), len(focus_node.children[1].extra_info["partial solutions"]))
 		## CREATE DICTIONARY FROM THE PARTIAL SOLUTIONS LISTS
+		
+		if len(focus_node.children[0].extra_info["subgraph edges"]) !=  len(focus_node.children[1].extra_info["subgraph edges"]):
+			raise ValueError("Join children do not have the same number of edges")
+
+		for i in range(len(focus_node.children[0].extra_info["subgraph edges"])):
+			if focus_node.children[0].extra_info["subgraph edges"][i] != focus_node.children[1].extra_info["subgraph edges"][i]:
+				raise ValueError("Join children do not have the same ordering of edges.")
+
+		if len(focus_node.children[0].vertex_set) != len(focus_node.children[1].vertex_set):
+			raise ValueError("Join children do not have the same number of vertices.")
+
+		for i in range(len(focus_node.children[0].vertex_set)):
+			vset_1 = list(focus_node.children[0].vertex_set)
+			vset_2 = list(focus_node.children[1].vertex_set)
+			if vset_1[i] != vset_2[i]:
+				raise ValueError("Join children do not have the same vertex set order.")
+
 		partial_solutions_map_1 = dict([])
-		for partial_solution in focus_node.children[0].extra_info["partial solutions"]:
-			(child_residual_flow_1, child_frontier_flow_1, child_x_cost_1) = partial_solution 
+		for index in range(len(focus_node.children[0].extra_info["partial solutions"])):
+			partial_solution = focus_node.children[0].extra_info["partial solutions"][index]
+			(child_residual_flow_1, child_frontier_flow_1, child_x_cost_1, _) = partial_solution 
 			partial_solution_key = tuple( child_frontier_flow_1 )
 			if partial_solution_key not in partial_solutions_map_1:
-				partial_solutions_map_1[partial_solution_key] = [( child_residual_flow_1, child_x_cost_1)]
+				partial_solutions_map_1[partial_solution_key] = [( child_residual_flow_1, child_x_cost_1, index)]
 			else:
-				partial_solutions_map_1[partial_solution_key].append(( child_residual_flow_1, child_x_cost_1))
+				partial_solutions_map_1[partial_solution_key].append(( child_residual_flow_1, child_x_cost_1, index))
 
 
-		for partial_solution_2 in focus_node.children[1].extra_info["partial solutions"]:
-			(child_residual_flow_2, child_frontier_flow_2, child_x_cost_2) = partial_solution_2 
+		for index_2 in range(len(focus_node.children[1].extra_info["partial solutions"])):
+			partial_solution_2  = focus_node.children[1].extra_info["partial solutions"][index_2]
+			(child_residual_flow_2, child_frontier_flow_2, child_x_cost_2, _ ) = partial_solution_2 
 			partial_solution_key = tuple( child_frontier_flow_2 )
 			
 			if partial_solution_key not in partial_solutions_map_1:
@@ -611,7 +636,8 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 
 			child_1_matching_solutions = partial_solutions_map_1[partial_solution_key]
 
-			for (child_residual_flow_1, child_x_cost_1_retrieved) in child_1_matching_solutions:
+
+			for (child_residual_flow_1, child_x_cost_1_retrieved, index_1) in child_1_matching_solutions:
 
 				joined_cost = child_x_cost_1_retrieved + child_x_cost_2
 				frontier_flow_cost_component = 0
@@ -628,7 +654,6 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 				### Compute the new resulting residual flow.
 				residual_flow = list( np.array( child_residual_flow_1) + np.array(child_residual_flow_2) )
 
-
 				for i in range(len(focus_vertices)):
 					v = focus_vertices[i]
 					neighbors = list(focus_node.extra_info["subgraph"].neighbors(v))
@@ -639,9 +664,20 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 						if edge_flow != 0:
 							residual_flow[i] -=  get_flow_into_vertex(edge, v, edge_flow)
 
-				partial_solutions.append((residual_flow, frontier_flow, x_cost))
+				if type(index_1) == list or type(index_2) == list:
+					raise ValueError("Type of index is list. Join nodes.")
+
+				partial_solutions.append((residual_flow, frontier_flow, x_cost, [index_1, index_2]))
+
+				if np.linalg.norm(np.array(frontier_flow) - np.array(focus_node.children[0].extra_info["partial solutions"][index_1][1])) > 0:
+					raise ValueError("Frontier flow of parent and child do not agree. Join structure.")
+
+				if np.linalg.norm(np.array(focus_node.children[0].extra_info["partial solutions"][index_1][1]) - np.array(focus_node.children[1].extra_info["partial solutions"][index_2][1])) > 0:
+					raise ValueError("The two frontier flows are not the same for this join node.!!!!")
 
 
+				if sum(residual_flow )!= 0:
+					raise ValueError( "The residual flow doesn't sum to zero.")
 
 
 	elif len(focus_node.children) == 1 and len(focus_node.vertex_set) == len(focus_node.children[0].vertex_set) -1:
@@ -655,44 +691,43 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 
 	
 		projected_solutions_map = dict([])
-		for partial_solution in focus_node.children[0].extra_info["partial solutions"]:
-			(child_residual_flow, child_frontier_flow, child_x_cost) = partial_solution
+		for index in range(len(focus_node.children[0].extra_info["partial solutions"])):
+			partial_solution = focus_node.children[0].extra_info["partial solutions"][index]
+
+			(child_residual_flow, child_frontier_flow, child_x_cost, _) = partial_solution
 			
 			## Check if residual flow at the forgotten vertex is zero
 			if child_residual_flow[child_vertices_to_indices[forgotten_vertex]] != 0:
 				continue
 
-
-
 			projected_residual_flow = [child_residual_flow[child_vertices_to_indices[v]] for v in focus_vertices]
+			print("projected residual flow ", projected_residual_flow)
+			print("child residual flow ", child_residual_flow)
 			projected_partial_flow = [child_frontier_flow[child_edges_to_indices[e]] for e in subgraph_edges]
 			neighbors_cost = 0
 
-			# for n in neighbors:
-			# 	neighbor_edge = frozenset([n, forgotten_vertex])
-			# 	neighbor_edge_index = child_edges_to_indices[neighbor_edge]
-			# 	neighbor_edge_flow = child_residual_flow[neighbor_edge_index]
-			# 	if neighbor_edge_flow != 0:
-			# 		neighbors_cost += costs_map[neighbor_edge]
+			projected_cost = child_x_cost
 
-
-
-			projected_cost = child_x_cost + neighbors_cost ## I don't think we need to modify the cost value.
-
-			projected_solution_key = tuple( projected_residual_flow + projected_partial_flow )     ## Hash the residual flow profile and the 
+			projected_solution_key = tuple( projected_residual_flow + projected_partial_flow )     
 
 			if projected_solution_key in projected_solutions_map:
-				projected_solutions_map[projected_solution_key] = min( projected_solutions_map[projected_solution_key],  projected_cost) 
+				projected_solutions_map[projected_solution_key] = (min( projected_solutions_map[projected_solution_key][0],  projected_cost) , index)
 			else:
-				projected_solutions_map[projected_solution_key] = projected_cost
+				projected_solutions_map[projected_solution_key] = (projected_cost, index)
+
 
 		for projected_solution_key in projected_solutions_map:
 			residual_flow =list( projected_solution_key[ :len(subgraph_vertices) ] ) 
 			frontier_flow = list(projected_solution_key[len(subgraph_vertices): len(subgraph_vertices) + len(subgraph_edges) ])
-			x_cost = projected_solutions_map[projected_solution_key]
+			(x_cost, index) = projected_solutions_map[projected_solution_key]
 
-			partial_solutions.append((residual_flow, frontier_flow, x_cost))
+			if type(index) == list:
+				raise ValueError("Type of index is list!!!!! Forget nodes.")
 
+			partial_solutions.append((residual_flow, frontier_flow, x_cost, [index]))
+			if sum(residual_flow )!= 0:
+				print(residual_flow)
+				raise ValueError( "The residual flow doesn't sum to zero.")
 
 
 
@@ -700,6 +735,7 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 	elif len(focus_node.children) == 1 and len(focus_node.vertex_set) == len(focus_node.children[0].vertex_set) +1:
 		print("Found an introduce node!!")
 		print("Children partial solution tables sizes ", len(focus_node.children[0].extra_info["partial solutions"]) )
+
 
 		added_vertex = list(focus_node.vertex_set - focus_node.children[0].vertex_set)[0]
 		added_vertex_index = focus_node.extra_info["vertices to indices"][added_vertex]
@@ -714,15 +750,13 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 
 		for neighbor_flow_profile in product(*neighbors_capacities_list):
 			
-			for partial_solution in focus_node.children[0].extra_info["partial solutions"]: 
-				#partial_solution = numpy.array(partial_solution)
-				#if len(partial_solution) !=  len(child_vertices_to_indices) + len(child_edges_to_indices) + 1:
-				#	raise ValueError("The child partial solution in this introduce node does not match the expected size")
-				(child_residual_flow, child_frontier_flow, child_x_cost) = partial_solution
-				#child_residual_flow = partial_solution[:len(child_vertices_to_indices)]
-				#child_frontier_flow = partial_solution[len(child_vertices_to_indices): len(child_vertices_to_indices) + len(child_edges_to_indices)]
-				#child_x_cost = partial_solution[-1]
-				(child_residual_flow, child_frontier_flow, child_x_cost) = partial_solution
+			for index in range(len(focus_node.children[0].extra_info["partial solutions"])): 
+				partial_solution = focus_node.children[0].extra_info["partial solutions"][index]
+				(child_residual_flow, child_frontier_flow, child_x_cost, _) = partial_solution
+
+				if len(child_residual_flow) != len(focus_node.vertex_set) -1:
+					raise ValueError("Child doesn't have one less node than parent in Introduce node structure.")
+
 				residual_flow = np.zeros(len(focus_node.vertex_set))
 				frontier_flow = np.zeros(len(focus_node.extra_info["subgraph edges"]))
 				x_cost = partial_solution[2]
@@ -752,10 +786,12 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 					if edge_flow != 0:
 						x_cost += costs_map[edge]
 
-				#dataframe_row = list(residual_flow) + list(frontier_flow) + [x_cost]
-				#row_df = pd.DataFrame(dataframe_row, columns = df_columns )
-				#partial_solutions_df.append(row_df, ignore_index = True)
-				partial_solutions.append((residual_flow, frontier_flow, x_cost))
+				if type(index) == list:
+					raise ValueError("Index type is list. Introduce node. ")
+
+				partial_solutions.append((residual_flow, frontier_flow, x_cost, [index]))
+				if sum(residual_flow )!= 0:
+					raise ValueError( "The residual flow doesn't sum to zero.")
 
 	else:
 		raise ValueError("This parent - child structure is broken!!!")
@@ -764,6 +800,76 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 	focus_node.extra_info["partial solutions"] = partial_solutions
 	print("Size of the partial solutions ", len(partial_solutions))
 	return root_treenode
+
+
+
+def recover_optimal_flow(prepared_tree_root):
+	min_cost = float("inf")
+	opt_indexes= None
+	opt_flow = None
+	i_star = None
+	for i in range(len(prepared_tree_root.extra_info["partial solutions"])):
+		p = prepared_tree_root.extra_info["partial solutions"][i]
+		if np.sum(np.abs(np.array(p[0]))) == 0:
+			if p[2]< min_cost:
+				min_cost = p[2]
+				opt_indexes = p[3]
+				opt_flow = p[1]
+				i_star = i
+	prepared_tree_root.extra_info["optimal index"] = i_star
+	prepared_tree_root.extra_info["downward visited"] = True
+	if len(opt_indexes) == 2:
+		prepared_tree_root.children[0].extra_info["optimal index"] =  opt_indexes[0]
+		prepared_tree_root.children[1].extra_info["optimal index"] =  opt_indexes[1]
+	elif len(opt_indexes) == 1:
+		prepared_tree_root.children[0].extra_info["optimal index"] = opt_indexes[0]
+	else:
+		raise ValueError("The root node of the tree is malformed!!!!!")
+	flow_map = dict({})
+	for i in range(len(prepared_tree_root.extra_info["subgraph edges"])):
+		edge = prepared_tree_root.extra_info["subgraph edges"][i]
+		edge_index = prepared_tree_root.extra_info["edges to indices"][edge]
+		flow_map[edge] = opt_flow[edge_index]
+	while True:
+		frontier = [prepared_tree_root]
+		all_are_downpropagated = True
+		while frontier != []:
+			focus_node = frontier[0]
+			if not focus_node.extra_info["downward visited"]:
+				all_are_downpropagated = False
+				subgraph_edges = focus_node.extra_info["subgraph edges"]
+				opt_index = focus_node.extra_info["optimal index"]
+				p_star = focus_node.extra_info["partial solutions"][opt_index]
+				opt_flow = p_star[1]
+				opt_indexes = p_star[3]
+				if len(opt_indexes) == 2:
+					focus_node.children[0].extra_info["optimal index"] =  opt_indexes[0]
+					focus_node.children[1].extra_info["optimal index"] =  opt_indexes[1]
+				elif len(opt_indexes) == 1:
+					focus_node.children[0].extra_info["optimal index"] = opt_indexes[0]
+				else:
+					if len(focus_node.children) != len(opt_indexes):
+						raise ValueError("The root node of the tree is malformed!!!!!")
+				for i in range(len(subgraph_edges)):
+					edge = subgraph_edges[i]
+					edge_index = focus_node.extra_info["edges to indices"][edge]
+					if edge in flow_map:
+						if flow_map[edge] != opt_flow[edge_index]:
+							
+							raise ValueError("Flows are not coinciding.")
+					else:
+						flow_map[edge] = opt_flow[edge_index]
+				focus_node.extra_info["downward visited"] = True
+				break
+			frontier = frontier[1:]
+			frontier += focus_node.children
+		if all_are_downpropagated:
+			break
+	return flow_map
+
+
+
+
 
 
 
