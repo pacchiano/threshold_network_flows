@@ -3,7 +3,7 @@ import networkx as nx
 from networkx.algorithms import approximation
 from nice_tree_decompositions import *
 
-def get_graph_pipelines(shortform = True, savefig = True):
+def get_graph_pipelines(shortform = True, savefig = True, special_edge = None):
 	data_file = open("./edges.csv")
 	pipelines_data = data_file.readlines()
 	## Process lines
@@ -30,6 +30,8 @@ def get_graph_pipelines(shortform = True, savefig = True):
 			nodes.add(line[3])
 	for node in nodes:
 		G.add_node(node)
+
+
 	## Adding the edges
 	for line in pipelines_data:
 		if line[2] == '"Liquefied Natural Gas"':
@@ -42,13 +44,20 @@ def get_graph_pipelines(shortform = True, savefig = True):
 			G.add_edge(line[2], '"Macedonia"')
 		else:
 			G.add_edge(line[2], line[3])
+
+	if special_edge != None:
+		if special_edge not in list(G.edges() ):
+			#raise ValueError("alsdkfm")
+			G.add_edge(list(special_edge)[0], list(special_edge)[1])
 	# Drawing the graph
+
 	if savefig:
 		pos = nx.spring_layout(G, scale = 5)
 		nx.draw(G, pos, with_labels = True, font_size = 6)
 		plt.savefig("./gas_network.svg", format="svg")
 		plt.clf()
 	if shortform:
+		#IPython.embed()
 		G = G.subgraph(['"France"', '"Germany"', '"LNG"','"Netherlands"', '"Ukraine"', '"Switzerland"', '"Austria"', '"Italy"', '"Poland"'])
 		if savefig:
 			## Drawing the graph
@@ -56,6 +65,12 @@ def get_graph_pipelines(shortform = True, savefig = True):
 			nx.draw(G, pos, with_labels = True, font_size = 6)
 			plt.savefig("./small_fig.svg", format = "svg")
 			plt.clf()
+		edges = list(G.edges)
+		#IPython.embed()
+		special_edge_tuple = tuple(special_edge)
+		if special_edge_tuple not in edges and (special_edge_tuple[1], special_edge_tuple[0]) not in edges:
+			raise ValueError("The special edge is not in the small subgraph.")
+
 	return G
 
 def main():
@@ -68,7 +83,6 @@ def main():
 	for e in edges:
 		capacities_map[e] = 1
 		costs_map[e] = 2
-	special_edge = edges[10]
 	k = 2
 
 	nice_tree_root_subgraphs_identifier = process_graph(G)

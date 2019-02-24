@@ -4,15 +4,39 @@ from scipy import optimize
 from networkx.algorithms import approximation
 from nice_tree_decompositions import *
 from pipelines_analysis import *
+from random_graph_analysis import *
 
-small_graph = True
-G = get_graph_pipelines(shortform = small_graph)
-use_tree = True
+graph_type = "pipelines"
 k = 1
+use_tree = False
+
+if graph_type == "pipelines":
+	small_graph = False
+	special_edge = frozenset({'"Ukraine"', '"Netherlands"'})
+	G = get_graph_pipelines(shortform = small_graph, special_edge = special_edge)
+	prunning_cost = 10
+elif graph_type == "geometric":
+	G = get_geometric_graph(n=20, radius=.20)
+	prunning_cost = 5
+	special_edge_index = 10
+	special_edge = frozenset(list(G.edges)[min(special_edge_index, len(G.edges)-1)])
+elif graph_type == "duplication":
+	special_edge = (1,19)
+	G = get_duplication_graph(n=40, p = .1, special_edge = special_edge )
+	special_edge = frozenset(special_edge)
+	prunning_cost = 5
+
+else:
+	raise ValueError("Graph type not implemented. ", graph_type)
+
+
+if not use_tree and k > 1:
+	raise ValueError("Not using tree and k > 1")
 epsilon_infeasible = 0
 epsilon_feasible = 5
 tolerance = .000001
 edges = list(G.edges)
+
 vertices = list(G.nodes)
 edges = [frozenset(e) for e in edges]
 edges_to_indices = dict([])
@@ -21,12 +45,14 @@ for i in range(len(edges)):
 	e = edges[i]
 	capacities_map[e] = 1
 	edges_to_indices[e] = i 
-special_edge = frozenset({'"Italy"', '"LNG"'})
+
 special_edge_index = edges_to_indices[special_edge]
 coalitions = []
 imputation = np.ones(len(edges))*1.0/(len(edges)-1)
 imputation[special_edge_index] = 0
-nice_tree_root_subgraphs_identifier = process_graph(G)
+
+if use_tree:
+	nice_tree_root_subgraphs_identifier = process_graph(G)
 
 while epsilon_feasible - epsilon_infeasible > tolerance:
 	costs_map = dict([])
@@ -36,33 +62,8 @@ while epsilon_feasible - epsilon_infeasible > tolerance:
 	if use_tree:
 
 
-		prepared_tree_root, optimal_flow_map, min_cost, opt_solution = solve_flow(nice_tree_root_subgraphs_identifier, capacities_map, special_edge, k, costs_map)
-		# num_nice_nodes = check_tree_size(nice_tree_root_subgraphs_identifier)
-
-		# prepared_tree_root = prepare_leaves_upward_propagation(nice_tree_root_subgraphs_identifier, 
-		# 			capacities_map ,  
-		# 			special_edge, 
-		# 			k,
-		# 			costs_map )
-		# for i in range(num_nice_nodes):
-		# 	upward_visited = count_upward_visited(prepared_tree_root)
-		# 	#print("Vertices left to upward propagate ", num_nice_nodes - upward_visited)
-		# 	prepared_tree_root = upward_propagate(prepared_tree_root,
-		# 					capacities_map ,  
-		# 					special_edge, 
-		# 					k,
-		# 					costs_map )
-		# min_cost = float("inf")
-		# opt_solution = None
-		# for p in prepared_tree_root.extra_info["partial solutions"]:
-		# 	if np.sum(np.abs(np.array(p[0]))) == 0:
-		# 		#print(p)
-		# 		if p[2]< min_cost:
-		# 			min_cost = p[2]
-		# 			opt_solution = p
-
-		print(optimal_flow_map)
-
+		prepared_tree_root, optimal_flow_map, min_cost, opt_solution = solve_flow(nice_tree_root_subgraphs_identifier, 
+											capacities_map, special_edge, k, costs_map)
 
 
 	else:
@@ -127,14 +128,14 @@ while epsilon_feasible - epsilon_infeasible > tolerance:
 				edge = edges[i]
 				optimal_flow_map[edge] = opt_flow.x[i]
 				if np.abs(opt_flow.x[i]) not in [0.0,1.0]:
-					print(opt_flow.x)
+					#print(opt_flow.x)
 					raise ValueError("Optimal flow was not integral!!!")
 
 		if optimal_flow_map != None:
 			for e in optimal_flow_map:
 				edge = list(e)
 				edge.sort()
-				print(edge, optimal_flow_map[e])
+				#print(edge, optimal_flow_map[e])
 		
 			coalition_edges = []
 			for e in edges:

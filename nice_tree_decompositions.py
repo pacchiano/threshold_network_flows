@@ -297,12 +297,13 @@ def clean_raw_nice_decomposition( root_treenode ):
 	return nice_tree
 
 
-def add_edge_leaf(root_treenode, target_edge):
+def add_edge_leaf(root_treenode, target_edge, verbose = False):
 	root_edge_added = copy.deepcopy(root_treenode)
-	leaves = find_leaves(root_edge_added, verbose = False)
+	leaves = find_leaves(root_edge_added, verbose = verbose)
 	for l in leaves:
 		if target_edge in l.extra_info["subgraph edges"]:
-			print("Edge was already there!!!")
+			if verbose:
+				print("Edge was already there!!!")
 			return root_edge_added
 
 	frontier = [root_edge_added]
@@ -543,7 +544,7 @@ def prepare_leaves_upward_propagation(root_treenode, capacities_map, special_edg
 
 	return root_nice_treenode_subgraph_identifier
 
-def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map, verbose = False):
+def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map, verbose = False, prunning_cost = float("inf")):
 	frontier = [root_treenode]
 	already_finished = True
 	while frontier != []:
@@ -669,7 +670,8 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 				if type(index_1) == list or type(index_2) == list:
 					raise ValueError("Type of index is list. Join nodes.")
 
-				partial_solutions.append((residual_flow, frontier_flow, x_cost, [index_1, index_2]))
+				if x_cost < prunning_cost:
+					partial_solutions.append((residual_flow, frontier_flow, x_cost, [index_1, index_2]))
 
 				if np.linalg.norm(np.array(frontier_flow) - np.array(focus_node.children[0].extra_info["partial solutions"][index_1][1])) > 0:
 					raise ValueError("Frontier flow of parent and child do not agree. Join structure.")
@@ -726,7 +728,8 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 			if type(index) == list:
 				raise ValueError("Type of index is list!!!!! Forget nodes.")
 
-			partial_solutions.append((residual_flow, frontier_flow, x_cost, [index]))
+			if x_cost < prunning_cost:
+				partial_solutions.append((residual_flow, frontier_flow, x_cost, [index]))
 			if sum(residual_flow )!= 0:
 				print(residual_flow)
 				raise ValueError( "The residual flow doesn't sum to zero.")
@@ -791,8 +794,8 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 
 				if type(index) == list:
 					raise ValueError("Index type is list. Introduce node. ")
-
-				partial_solutions.append((residual_flow, frontier_flow, x_cost, [index]))
+				if x_cost < prunning_cost:
+					partial_solutions.append((residual_flow, frontier_flow, x_cost, [index]))
 				if sum(residual_flow )!= 0:
 					raise ValueError( "The residual flow doesn't sum to zero.")
 
@@ -809,7 +812,6 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 		if partial_solution_key not in partial_solutions_map:
 			partial_solutions_map[partial_solution_key] = (p[2], p[3])
 		else:
-			#raise ValueError("aslkfmasldfkmasdlfkmasldkfmalskdmfalksdmlaksmdflaksdmf")
 			existing_tuple = partial_solutions_map[partial_solution_key]
 			if p[2] < existing_tuple[0]:
 				partial_solutions_map[partial_solution_key] = (p[2], p[3])
@@ -821,7 +823,7 @@ def upward_propagate(root_treenode, capacities_map, special_edge,  k, costs_map,
 		(x_cost, indices) = partial_solutions_map[p]
 		partial_solutions.append((residual_flow, frontier_flow, x_cost, indices ))
 
-	#print("Post trimming size ", len(partial_solutions))
+	print("Post trimming size ", len(partial_solutions))
 	focus_node.extra_info["partial solutions"] = partial_solutions
 	if verbose:
 		print("Size of the partial solutions ", len(partial_solutions))
@@ -906,6 +908,8 @@ def process_graph(G, savefigures = True):
 
 	treewidth, treedecomposition = approximation.treewidth_min_fill_in(G) 
 
+	print("Treewidth ", treewidth)
+	
 	if savefigures:
 		pos = nx.spring_layout(treedecomposition, scale = 3)
 		nx.draw(treedecomposition, pos, with_labels = True, font_size = 6)
@@ -961,7 +965,7 @@ def process_graph(G, savefigures = True):
 
 	return nice_tree_root_subgraphs_identifier
 
-def solve_flow(nice_tree_root_subgraphs_identifier, capacities_map, special_edge, k, costs_map):
+def solve_flow(nice_tree_root_subgraphs_identifier, capacities_map, special_edge, k, costs_map, prunning_cost = float("inf")):
 	num_nice_nodes = check_tree_size(nice_tree_root_subgraphs_identifier)
 
 	prepared_tree_root = prepare_leaves_upward_propagation(nice_tree_root_subgraphs_identifier, 
@@ -978,7 +982,8 @@ def solve_flow(nice_tree_root_subgraphs_identifier, capacities_map, special_edge
 						capacities_map ,  
 						special_edge, 
 						k,
-						costs_map )
+						costs_map, 
+						prunning_cost = prunning_cost )
 
 	min_cost = float("inf")
 	opt_solution = None
