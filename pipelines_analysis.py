@@ -58,7 +58,12 @@ def get_graph_pipelines(shortform = True, savefig = True, special_edge = None):
 		plt.clf()
 	if shortform:
 		#IPython.embed()
-		G = G.subgraph(['"France"', '"Germany"', '"LNG"','"Netherlands"', '"Ukraine"', '"Switzerland"', '"Austria"', '"Italy"', '"Poland"'])
+		#G = G.subgraph(['"France"', '"Germany"', '"LNG"','"Netherlands"', '"Ukraine"', '"Switzerland"', '"Austria"', '"Italy"', '"Poland"'])
+		G = G.subgraph(['"France"', '"Germany"', '"LNG"','"Netherlands"', '"Ukraine"',
+		 '"Switzerland"', '"Austria"', '"Italy"', '"Poland"', '"Denmark"', '"Russia"', '"Greece"',
+		 '"Bulgaria"', '"Turkey"', '"Lithuania"', '"Portugal"', '"Romania"', '"Spain"', '"Slovenia"', 
+		 '"Croatia"', '"Hungary"'])
+
 		if savefig:
 			## Drawing the graph
 			pos = nx.spring_layout(G, scale = 5)
@@ -74,7 +79,8 @@ def get_graph_pipelines(shortform = True, savefig = True, special_edge = None):
 	return G
 
 def main():
-	G = get_graph_pipelines()
+	special_edge = frozenset({'"Italy"', '"LNG"'})	
+	G = get_graph_pipelines(special_edge = special_edge)
 	upward_propagate = True
 	edges = list(G.edges)
 	edges = [frozenset(e) for e in edges]
@@ -87,7 +93,6 @@ def main():
 
 	nice_tree_root_subgraphs_identifier = process_graph(G)
 
-	special_edge = frozenset({'"Italy"', '"LNG"'})
 
 	if upward_propagate: 
 		prepared_tree_root, optimal_flow_map, min_cost, opt_solution = solve_flow(nice_tree_root_subgraphs_identifier, capacities_map, special_edge, k, costs_map)
