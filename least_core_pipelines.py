@@ -1,5 +1,6 @@
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-plt.use('Agg')
 import networkx as nx
 from scipy import optimize 
 from networkx.algorithms import approximation
