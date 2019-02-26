@@ -63,6 +63,9 @@ def get_graph_pipelines(shortform = True, savefig = True, special_edge = None):
 		 '"Switzerland"', '"Austria"', '"Italy"', '"Poland"', '"Denmark"', '"Russia"', '"Greece"',
 		 '"Bulgaria"', '"Turkey"', '"Lithuania"', '"Portugal"', '"Romania"', '"Spain"', '"Slovenia"', 
 		 '"Croatia"', '"Hungary"'])
+		# G = G.subgraph(['"France"', '"Germany"', '"Netherlands"', '"Ukraine"',
+		#  '"Switzerland"', '"Austria"', '"Italy"', '"Poland"', '"Denmark"', '"Russia"', '"Greece"',
+		#  '"Bulgaria"', '"Turkey"', '"Lithuania"', '"Portugal"', '"Romania"', '"Spain"', '"Slovenia"'])
 
 		if savefig:
 			## Drawing the graph
